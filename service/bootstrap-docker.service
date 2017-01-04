@@ -1,0 +1,24 @@
+[Unit]
+Description=Docker Application Container Engine
+Documentation=https://docs.docker.com
+After=network.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/dockerd \
+  -H ${DOCKER_BOOTSTRAP_SOCK} \
+  -p /var/run/docker-bootstrap.pid \
+  --iptables=false \
+  --ip-masq=false \
+  --exec-root=/var/run/docker-bootstrap \
+  --graph=/var/lib/docker-bootstrap
+ExecReload=/bin/kill -s HUP $MAINPID
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+Delegate=yes
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

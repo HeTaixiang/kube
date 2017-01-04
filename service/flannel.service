@@ -1,0 +1,21 @@
+[Unit]
+Description=Flannel Server
+After=network.target
+After=bootstrap-docker.service
+
+[Service]
+WorkingDirectory=${FLANNEL_RUNTIME_DIR}
+PreStart=-/usr/bin/docker -H ${DOCKER_BOOTSTRAP_SOCK} rm -f ${FLANNEL_NAME}
+ExecStart=/usr/bin/docker -H ${DOCKER_BOOTSTRAP_SOCK} run \
+  --name ${FLANNEL_NAME} \
+  --network host \
+  --privileged \
+  --volume ${FLANNEL_RUNTIME_DIR}:${FLANNEL_RUNTIME_DIR} \
+  ${FLANNEL_IMAGE_REPO}:${FLANNEL_VER} \
+  /opt/bin/flanneld --etcd-endpoints ${ETCD_ENDPOINTS} --iface ${ADVERTISE_IP} --public-ip ${ADVERTISE_IP} --subnet-dir ${FLANNEL_RUNTIME_DIR}
+ExecStop=-/usr/bin/docker -H ${DOCKER_BOOTSTRAP_SOCK} rm -f ${FLANNEL_NAME}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

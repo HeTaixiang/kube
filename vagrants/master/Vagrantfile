@@ -1,0 +1,126 @@
+# -*- mode: ruby -*-
+# # vi: set ft=ruby :
+
+require 'fileutils'
+require 'open-uri'
+require 'tempfile'
+require 'yaml'
+
+Vagrant.require_version ">= 1.6.0"
+
+$controller_count = 1
+$controller_vm_memory = 512
+$etcd_count = 3
+
+CONTROLLER_CLUSTER_IP="10.3.0.1"
+CONTROLLER_CLOUD_CONFIG_PATH = File.expand_path("../../script/controller-install.sh")
+BOX_URL = File.expand_path("../../box/debian-jessie-x64")
+
+def etcdIP(num)
+  # used for multi-machine vm
+  # return "172.17.4.#{num+50}"
+  return "192.168.1.#{num+230}"
+end
+
+def controllerIP(num)
+  # used for multi-machine vm
+  # return "172.17.4.#{num+100}"
+  return "192.168.1.#{num+235}"
+end
+
+controllerIPs = [*1..$controller_count].map{ |i| controllerIP(i) } <<  CONTROLLER_CLUSTER_IP
+etcdIPs = [*1..$etcd_count].map{ |i| etcdIP(i) }
+etcd_endpoints = etcdIPs.map.with_index{ |ip, i| "http://#{ip}:2379" }.join(",")
+
+# Generate root CA
+system("mkdir -p ../ssl && ./../../lib/init-ssl-ca ../ssl") or abort ("failed generating SSL artifacts")
+
+# Generate admin key/cert
+system("./../../lib/init-ssl ../ssl admin kube-admin") or abort("failed generating admin SSL artifacts")
+
+def provisionMachineSSL(machine,certBaseName,cn,ipAddrs)
+  tarFile = "../ssl/#{cn}.tar"
+  ipString = ipAddrs.map.with_index { |ip, i| "IP.#{i+1}=#{ip}"}.join(",")
+  system("./../../lib/init-ssl ../ssl #{certBaseName} #{cn} #{ipString}") or abort("failed generating #{cn} SSL artifacts")
+  machine.vm.provision :file, :source => tarFile, :destination => "/tmp/ssl.tar"
+  machine.vm.provision :shell, :inline => "mkdir -p /etc/kubernetes/ssl && tar -C /etc/kubernetes/ssl -xf /tmp/ssl.tar", :privileged => true
+end
+
+Vagrant.configure("2") do |config|
+  # always use Vagrant's insecure key
+  config.ssh.insert_key = false
+  config.ssh.shell = "bash -c 'BASH_ENV=/etc/profile exec bash'"
+  # box config
+  config.vm.box = "debian-jessie-x64"
+  config.vm.box_check_update = false
+  config.vm.box_url = "file://#{BOX_URL}"
+  # config.vm.box = "centos/7"
+  # config.vm.box_version = ">=1610.01"
+  # config.vm.box_check_update = false
+  # config.vm.box_url = "https://atlas.hashicorp.com/centos/boxes/7"
+
+  config.vm.provider :virtualbox do |v|
+    # On VirtualBox, we don't have guest additions or a functional vboxsf
+    # in CoreOS, so tell Vagrant that so it can be smarter.
+    v.check_guest_additions = false
+    v.functional_vboxsf     = false
+  end
+
+  # plugin conflict
+  if Vagrant.has_plugin?("vagrant-vbguest") then
+    config.vbguest.auto_update = false
+  end
+
+  config.vm.provider :virtualbox do |vb|
+    vb.cpus = 1
+    vb.gui = false
+  end
+
+  (1..$controller_count).each do |i|
+    config.vm.define vm_name = "c%d" % i do |controller|
+
+      env_file = Tempfile.new('env_file', :binmode => true)
+      env_file.write("ETCD_ENDPOINTS=#{etcd_endpoints}\n")
+      env_file.write("CONTROLLER_ENDPOINT=http://127.0.0.1:8080\n")
+      env_file.close
+
+      controller.vm.hostname = vm_name
+
+      controller.vm.provider :virtualbox do |vb|
+        vb.memory = $controller_vm_memory
+      end
+
+      controllerIP = controllerIP(i)
+      controller.vm.network :public_network, ip: controllerIP, bridge: "en0: Ethernet"
+
+      # Each controller gets the same cert
+      provisionMachineSSL(controller, "apiserver", "kube-apiserver-#{controllerIP}", controllerIPs)
+      # upload env
+      controller.vm.provision :file, :source => "../../script/config.json", :destination => "/tmp/config.json"
+      controller.vm.provision :shell, :inline => "mkdir -p /root/.docker && mv /tmp/config.json /root/.docker", :privileged => true
+      controller.vm.provision :file, :source => env_file, :destination => "/tmp/coreos-kube-options.env"
+      controller.vm.provision :shell, :inline => "mkdir -p /run/kubelet && mv /tmp/coreos-kube-options.env /run/kubelet/options.env", :privileged => true
+      # upload service
+      controller.vm.provision :file, :source => "../../service/bootstrap-docker.service", :destination => "/tmp/bootstrap-docker.service"
+      controller.vm.provision :file, :source => "../../service/flannel.service", :destination => "/tmp/flannel.service"
+      controller.vm.provision :file, :source => "../../service/kubelet.service", :destination => "/tmp/kubelet.service"
+      # upload manifests
+      controller.vm.provision :file, :source => "../../manifests/kube-addon-manager.yaml", :destination => "/tmp/kube-addon-manager.yaml"
+      controller.vm.provision :file, :source => "../../manifests/kube-apiserver.yaml", :destination => "/tmp/kube-apiserver.yaml"
+      controller.vm.provision :file, :source => "../../manifests/kube-controller-manager.yaml", :destination => "/tmp/kube-controller-manager.yaml"
+      controller.vm.provision :file, :source => "../../manifests/kube-scheduler.yaml", :destination => "/tmp/kube-scheduler.yaml"
+      # controller.vm.provision :file, :source => "../../manifests/kube-system.yaml", :destination => "/tmp/kube-system.yaml"
+      # reposition
+      controller.vm.provision :shell, :inline => "mv /tmp/*.service /etc/systemd/system/", :privileged => true
+      controller.vm.provision :shell, :inline => "mkdir -p /etc/kubernetes/manifests && mv /tmp/*.yaml /etc/kubernetes/manifests", :privileged => true
+      # upload script
+      controller.vm.provision :file, :source => "../../script/util.sh", :destination => "/tmp/util.sh"
+      controller.vm.provision :file, :source => "../../script/docker.sh", :destination => "/tmp/docker.sh"
+      controller.vm.provision :file, :source => "../../script/flannel-docker.sh", :destination => "/tmp/flannel-docker.sh"
+      controller.vm.provision :file, :source => "../../script/kubelet.sh", :destination => "/tmp/kubelet.sh"
+      controller.vm.provision :file, :source => CONTROLLER_CLOUD_CONFIG_PATH, :destination => "/tmp/controller-install.sh"
+      controller.vm.provision :shell, :inline => "cd /tmp && ./controller-install.sh", :privileged => true
+    end
+  end
+
+end

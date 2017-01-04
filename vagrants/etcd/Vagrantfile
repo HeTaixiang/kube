@@ -1,0 +1,85 @@
+# -*- mode: ruby -*-
+# # vi: set ft=ruby :
+
+require 'fileutils'
+require 'open-uri'
+require 'tempfile'
+require 'yaml'
+
+Vagrant.require_version ">= 1.6.0"
+
+$etcd_count = 3
+$etcd_vm_memory = 512
+BOX_URL = File.expand_path("../../box/debian-jessie-x64")
+
+def etcdIP(num)
+  return "192.168.1.#{num+230}"
+end
+
+etcdIPs = [*1..$etcd_count].map{ |i| etcdIP(i) }
+initial_etcd_cluster = etcdIPs.map.with_index{ |ip, i| "e#{i+1}=http://#{ip}:2380" }.join(",")
+
+def provisionMachineEtcdConf(machine, name, publicIp, initial_etcd_cluster)
+  env_file = Tempfile.new('env_file', :binmode => true)
+  env_file.write("NAME=#{name}\n")
+  env_file.write("IP=#{publicIp}\n")
+  env_file.write("INIT_ETCD_CLUSTER=#{initial_etcd_cluster}\n")
+  env_file.close
+
+  machine.vm.provision :file, :source => env_file, :destination => "/tmp/etcd.env"
+  machine.vm.provision :shell, :inline => "mkdir -p /var/lib/etcd && mv /tmp/etcd.env /var/lib/etcd/", :privileged => true
+end
+
+Vagrant.configure("2") do |config|
+  # always use Vagrant's insecure key
+  config.ssh.insert_key = false
+  config.ssh.shell = "bash -c 'BASH_ENV=/etc/profile exec bash'"
+  # box config
+  config.vm.box = "debian-jessie-x64"
+  config.vm.box_check_update = false
+  config.vm.box_url = "file://#{BOX_URL}"
+  # config.vm.box = "centos/7"
+  # config.vm.box_version = ">=1610.01"  
+  # config.vm.box_url = "https://atlas.hashicorp.com/centos/boxes/7"
+
+  config.vm.provider :virtualbox do |v|
+    v.check_guest_additions = false
+    v.functional_vboxsf     = false
+  end
+
+  # plugin conflict
+  if Vagrant.has_plugin?("vagrant-vbguest") then
+    config.vbguest.auto_update = false
+  end
+
+  config.vm.provider :virtualbox do |vb|
+    vb.cpus = 1
+    vb.gui = false
+  end
+
+  (1..$etcd_count).each do |i|
+    config.vm.define vm_name = "e%d" % i do |etcd|
+      etcd.vm.hostname = vm_name
+
+      etcd.vm.provider :virtualbox do |vb|
+        vb.memory = $etcd_vm_memory
+      end
+
+      ip = etcdIP(i)
+      etcd.vm.network :public_network, ip: ip, bridge: "en0: Ethernet"
+
+      provisionMachineEtcdConf(etcd, "#{vm_name}", "#{ip}", "#{initial_etcd_cluster}")
+      etcd.vm.provision :file, :source => "../../service/etcd.service", :destination => "/tmp/etcd.service"
+      etcd.vm.provision :shell, :inline => "cd /tmp && mv etcd.service /etc/systemd/system", :privileged => true
+
+      etcd.vm.provision :file, :source => "../../script/config.json", :destination => "/tmp/config.json"
+      etcd.vm.provision :shell, :inline => "mkdir -p /root/.docker && mv /tmp/config.json /root/.docker/", :privileged => true
+      etcd.vm.provision :file, :source => "../../script/util.sh", :destination => "/tmp/util.sh"
+      etcd.vm.provision :file, :source => "../../script/docker.sh", :destination => "/tmp/docker.sh"
+      etcd.vm.provision :file, :source => "../../script/etcd-docker.sh", :destination => "/tmp/etcd-docker.sh"
+      etcd.vm.provision :file, :source => "../../script/etcd-install.sh", :destination => "/tmp/etcd-install.sh"
+      etcd.vm.provision :shell, :inline => "cd /tmp && ./etcd-install.sh", :privileged => true
+    end
+  end
+
+end

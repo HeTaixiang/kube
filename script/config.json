@@ -1,0 +1,10 @@
+{
+	"auths": {
+		"docker.zhimei360.com": {
+			"auth": "emhpbWVpOmFkbWluaGFoYQ=="
+		},
+		"https://index.docker.io/v1/": {
+			"auth": "bmhodHg6U3liYXNlODI2"
+		}
+	}
+}

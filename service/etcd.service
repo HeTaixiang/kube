@@ -1,0 +1,25 @@
+[Unit]
+Description=Etcd Server
+After=network.target
+After=docker.service
+
+[Service]
+WorkingDirectory=${ETCD_DATA_DIR}
+ExecStart=/usr/bin/docker run \
+  --name ${ETCD_NAME} \
+  --network host \
+  --volume ${ETCD_DATA_DIR}:${ETCD_DATA_DIR} \
+  ${ETCD_IMAGE_REPO}:${ETCD_VER} etcd \
+    --name ${ETCD_NAME} \
+    --data-dir ${ETCD_DATA_DIR}/${ETCD_NAME}.etcd \
+    --listen-peer-urls ${ETCD_LISTEN_PEER_URLS} \
+    --listen-client-urls ${ETCD_LISTEN_CLIENT_URLS} \
+    --initial-advertise-peer-urls ${ETCD_INITIAL_ADVERTISE_PEER_URLS} \
+    --initial-cluster ${ETCD_INITIAL_CLUSTER} \
+    --advertise-client-urls ${ETCD_ADVERTISE_CLIENT_URLS}
+ExecStop=-/usr/bin/docker rm -f ${ETCD_NAME}
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

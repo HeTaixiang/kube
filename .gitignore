@@ -1,0 +1,8 @@
+vagrants/ssl/
+vagrants/etcd/.vagrant/
+vagrants/etcd/ssl/
+vagrants/master/.vagrant/
+vagrants/master/.srl
+vagrants/worker/.vagrant/
+vagrants/worker/.srl
+box/

@@ -1,0 +1,26 @@
+[Unit]
+Description=Kubelet Server
+After=network.target
+After=docker.service
+
+[Service]
+ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+ExecStart=/kubelet \
+    --api-servers=${CONTROLLER_ENDPOINT} \
+    --register-schedulable=false \
+    --container-runtime=${CONTAINER_RUNTIME} \
+    --allow-privileged=true \
+    --pod-manifest-path=/etc/kubernetes/manifests \
+    --hostname-override=${ADVERTISE_IP} \
+    --cluster_dns=${DNS_SERVICE_IP} \
+    --cluster_domain=cluster.local \
+    --pod-infra-container-image=docker.zhimei360.com/pause-amd64:3.0 \
+    --v=2 
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=10
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

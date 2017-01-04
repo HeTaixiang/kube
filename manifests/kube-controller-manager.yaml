@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-controller-manager
+  namespace: kube-system
+spec:
+  containers:
+  - name: kube-controller-manager
+    image: ${HYPERKUBE_IMAGE_REPO}:$K8S_VER
+    command:
+    - /hyperkube
+    - controller-manager
+    - --master=http://127.0.0.1:8080
+    - --leader-elect=false
+    - --cluster-cidr=${POD_NETWORK}
+    - --service-cluster-ip-range=${SERVICE_IP_RANGE}
+    - --service-account-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
+    - --root-ca-file=/etc/kubernetes/ssl/ca.pem
+    - --v=2
+    - 1>>/var/log/kube-controller-manager.log 2>&1
+    resources:
+      requests:
+        cpu: 200m
+    livenessProbe:
+      httpGet:
+        host: 127.0.0.1
+        path: /healthz
+        port: 10252
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
+    volumeMounts:
+    - mountPath: /etc/kubernetes/ssl
+      name: ssl-certs-kubernetes
+      readOnly: true
+    - mountPath: /var/log/kube-controller-manager.log
+      name: logfile
+      readOnly: false
+  hostNetwork: true
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/ssl
+    name: ssl-certs-kubernetes
+  - hostPath:
+      path: /var/log/kube-controller-manager.log
+    name: logfile
