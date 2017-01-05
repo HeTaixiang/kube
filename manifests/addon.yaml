@@ -114,6 +114,7 @@ spec:
         - --deployment=heapster-v1.2.0
         - --container=eventer
         - --poll-period=300000
+      dnsPolicy: ClusterFirst
 
 ---
 # heapster-service
@@ -207,7 +208,7 @@ spec:
         emptyDir: {}
       - name: grafana-persistent-storage
         emptyDir: {}
-
+      dnsPolicy: ClusterFirst
 ---
 # grafana-service
 apiVersion: v1
@@ -292,7 +293,7 @@ spec:
             port: 9090
           initialDelaySeconds: 30
           timeoutSeconds: 30
-
+      dnsPolicy: ClusterFirst
 ---
 # kube-dashboard-service
 apiVersion: v1
