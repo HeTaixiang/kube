@@ -1,0 +1,16 @@
+ # NOTE
+
+ ## Debian configurations
+
+ * 修改/etc/default/grub
+
+   ```
+    GRUB_CMDLINE_LINUX="cgroup_enable=memory"
+    sudo update-grub2
+   ```
+ * 禁用swap分区
+ 
+  ```
+    vi /etc/fstab
+    注释掉swap分区
+  ```

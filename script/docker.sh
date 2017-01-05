@@ -55,7 +55,13 @@ EOF
 function kube::docker::start_docker() {
   systemctl daemon-reload
   systemctl enable docker
-  systemctl start docker
+
+  local status=$(systemctl is-active docker)
+  if [[ "$status" == "active" ]]; then
+    systemctl restart docker
+  else
+    systemctl start docker
+  fi  
 
 }
 

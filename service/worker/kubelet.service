@@ -4,8 +4,8 @@ After=network.target
 After=docker.service
 
 [Service]
-ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
-ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+ExecStartPre=/bin/mkdir -p /etc/kubernetes/manifests
+ExecStartPre=/bin/mkdir -p /var/log/containers
 ExecStart=/kubelet  \
     --api-servers=${CONTROLLER_ENDPOINT} \
     --container-runtime=${CONTAINER_RUNTIME} \
@@ -18,7 +18,7 @@ ExecStart=/kubelet  \
     --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
     --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
     --pod-infra-container-image=docker.zhimei360.com/pause-amd64:3.0 \
-    --v=2 
+    --v=2
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always
 RestartSec=10
