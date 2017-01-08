@@ -6,3 +6,4 @@ vagrants/master/.srl
 vagrants/worker/.vagrant/
 vagrants/worker/.srl
 box/
+.DS_Store
