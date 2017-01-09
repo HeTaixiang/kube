@@ -57,7 +57,7 @@ spec:
         command:
         - /eventer
         - --source=kubernetes:''
-        - --sink=influxdb:http://monitoring-influxdb:8086
+        - --sink=influxdb:http://monitoring-influxdb.kube-system.svc.cluster.local:8086
       - image: docker.zhimei360.com/addon-resizer-amd64:1.6
         name: heapster-nanny
         resources:
