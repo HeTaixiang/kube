@@ -495,3 +495,64 @@ Run
   |
   syncLoop
 ```
+
+### component 解析
+#### dockertools
+
+##### DockerInterface 定义
+```
+type DockerInterface interface {
+	ListContainers(options dockertypes.ContainerListOptions) ([]dockertypes.Container, error)
+	InspectContainer(id string) (*dockertypes.ContainerJSON, error)
+	CreateContainer(dockertypes.ContainerCreateConfig) (*dockertypes.ContainerCreateResponse, error)
+	StartContainer(id string) error
+	StopContainer(id string, timeout int) error
+	RemoveContainer(id string, opts dockertypes.ContainerRemoveOptions) error
+	InspectImageByRef(imageRef string) (*dockertypes.ImageInspect, error)
+	InspectImageByID(imageID string) (*dockertypes.ImageInspect, error)
+	ListImages(opts dockertypes.ImageListOptions) ([]dockertypes.Image, error)
+	PullImage(image string, auth dockertypes.AuthConfig, opts dockertypes.ImagePullOptions) error
+	RemoveImage(image string, opts dockertypes.ImageRemoveOptions) ([]dockertypes.ImageDelete, error)
+	ImageHistory(id string) ([]dockertypes.ImageHistory, error)
+	Logs(string, dockertypes.ContainerLogsOptions, StreamOptions) error
+	Version() (*dockertypes.Version, error)
+	Info() (*dockertypes.Info, error)
+	CreateExec(string, dockertypes.ExecConfig) (*dockertypes.ContainerExecCreateResponse, error)
+	StartExec(string, dockertypes.ExecStartCheck, StreamOptions) error
+	InspectExec(id string) (*dockertypes.ContainerExecInspect, error)
+	AttachToContainer(string, dockertypes.ContainerAttachOptions, StreamOptions) error
+	ResizeContainerTTY(id string, height, width int) error
+	ResizeExecTTY(id string, height, width int) error
+}
+```
+
+##### docker pull 查询.docker/config.json 路径顺序为：当期工作目录、Home目录、/(不是 /root目录)
+
+
+#### Pod source
+
+```
+type PodConfig struct {
+	pods *podStorage
+	mux  *config.Mux
+
+	// the channel of denormalized changes passed to listeners
+	updates chan kubetypes.PodUpdate
+
+	// contains the list of all configured sources
+	sourcesLock sync.Mutex
+	sources     sets.String
+}
+
+type PodUpdate struct {
+	Pods   []*api.Pod
+	Op     PodOperation
+	Source string
+}
+
+Pod 有三个来源：
+1、来源于文件（默认目录为/etc/kubernetes/manifests)
+2、来源于网络
+3、来源于Apiserver
+
+```

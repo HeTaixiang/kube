@@ -131,7 +131,7 @@ kube::flannel::export_subnet_env
 # init docker
 kube::docker::init_docker
 kube::docker::start_docker
-kube::docker::pull_image
+# kube::docker::pull_image
 
 # config kubernetes master yaml
 config_master
