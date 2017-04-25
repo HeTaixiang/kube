@@ -18,6 +18,7 @@ ExecStart=/kubelet  \
     --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
     --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
     --pod-infra-container-image=docker.zhimei360.com/pause-amd64:3.0 \
+    --network-plugin=cni \
     --v=2
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always

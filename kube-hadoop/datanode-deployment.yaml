@@ -1,0 +1,107 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: datanode
+  namespace: hadoop
+  labels:
+    app: hadoop-datanode
+    tier: persistence
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hadoop-datanode
+      tier: persistence
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: hadoop-datanode
+        tier: persistence
+        version: v1
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: >
+          {
+            "podAntiAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "labelSelector": {
+                    matchExpressions: [
+                      {
+                        "key": "app",
+                        "operator": "in",
+                        "values": ["hadoop-datanode", "hadoop-namenode", "hadoop-resourcemanager"]
+                      }
+                    ]
+                  },
+                  "namespaces": ["hadoop"],
+                  "topologyKey": "kubernetes.io/hostname"
+                }
+              ]
+            }
+          }
+    spec:
+      containers:
+# DataNode Container
+      - name: datanode
+        image: docker.zhimei360.com/hadoop:2.7.3
+        args:
+        - hadoop-daemon.sh
+        - --config
+        - /etc/hadoop
+        - --script
+        - hdfs
+        - start
+        - datanode
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 250m
+            memory: 512Mi
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /etc/hadoop
+          readOnly: true
+        - name: datanode-data
+          mountPath: /hadoop/dfs/data
+# NodeManager Container
+      - name: nodemanager
+        image: docker.zhimei360.com/hadoop:2.7.3
+        args:
+        - yarn-daemon.sh
+        - --config
+        - /etc/hadoop
+        - start
+        - nodemanager
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1024Mi
+          limits:
+            cpu: 500m
+            memory: 1024Mi
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /etc/hadoop
+          readOnly: true
+# Volumes
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hadoop-config
+          items:
+          - key: core-site
+            path: core-site.xml
+          - key: hdfs-site
+            path: hdfs-site.xml
+          - key: yarn-site
+            path: yarn-site.xml
+      - name: datanode-data
+        # hostPath:
+        #   path: /hadoop/dfs/data
+        emptyDir: {}
+# DNS Policy
+      dnsPolicy: ClusterFirst

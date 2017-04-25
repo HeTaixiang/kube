@@ -11,10 +11,11 @@ Vagrant.require_version ">= 1.6.0"
 $controller_count = 1
 $controller_vm_memory = 512
 $etcd_count = 3
-
+defaultGW = "192.168.1.1"
 CONTROLLER_CLUSTER_IP="10.3.0.1"
 CONTROLLER_CLOUD_CONFIG_PATH = File.expand_path("../../script/controller-install.sh")
-BOX_URL = File.expand_path("../../box/debian-jessie-x64")
+# BOX_URL = File.expand_path("../../box/debian-jessie-x64")
+BOX_URL = File.expand_path("../../box/ubuntu-xenial.box")
 
 def etcdIP(num)
   # used for multi-machine vm
@@ -48,10 +49,11 @@ end
 
 Vagrant.configure("2") do |config|
   # always use Vagrant's insecure key
-  config.ssh.insert_key = false
-  config.ssh.shell = "bash -c 'BASH_ENV=/etc/profile exec bash'"
+  # config.ssh.insert_key = false
+  # config.ssh.shell = "bash -c 'BASH_ENV=/etc/profile exec bash'"
   # box config
-  config.vm.box = "debian-jessie-x64"
+  # config.vm.box = "debian-jessie-x64"
+  config.vm.box = "ubuntu-xenial"
   config.vm.box_check_update = false
   config.vm.box_url = "file://#{BOX_URL}"
   # config.vm.box = "centos/7"
@@ -92,7 +94,10 @@ Vagrant.configure("2") do |config|
 
       controllerIP = controllerIP(i)
       controller.vm.network :public_network, ip: controllerIP, bridge: "en0: Ethernet"
-
+      # set default route
+      controller.vm.provision :shell, :run => "always", :inline => "route add default gw #{defaultGW}"
+      #disable sync fold
+      controller.vm.synced_folder ".", "/vagrant", :disabled => true
       # Each controller gets the same cert
       provisionMachineSSL(controller, "apiserver", "kube-apiserver-#{controllerIP}", controllerIPs)
       # upload env
@@ -105,7 +110,7 @@ Vagrant.configure("2") do |config|
       controller.vm.provision :file, :source => "../../service/flannel.service", :destination => "/tmp/flannel.service"
       controller.vm.provision :file, :source => "../../service/kubelet.service", :destination => "/tmp/kubelet.service"
       # upload manifests
-      controller.vm.provision :file, :source => "../../manifests/kube-addon-manager.yaml", :destination => "/tmp/kube-addon-manager.yaml"
+      # controller.vm.provision :file, :source => "../../manifests/kube-addon-manager.yaml", :destination => "/tmp/kube-addon-manager.yaml"
       controller.vm.provision :file, :source => "../../manifests/kube-apiserver.yaml", :destination => "/tmp/kube-apiserver.yaml"
       controller.vm.provision :file, :source => "../../manifests/kube-controller-manager.yaml", :destination => "/tmp/kube-controller-manager.yaml"
       controller.vm.provision :file, :source => "../../manifests/kube-scheduler.yaml", :destination => "/tmp/kube-scheduler.yaml"

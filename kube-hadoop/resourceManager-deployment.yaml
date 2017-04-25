@@ -1,0 +1,79 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: resourceManager
+  namespace: hadoop
+  labels:
+    app: hadoop-resourcemanager
+    tier: persistence
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hadoop-resourcemanager
+      tier: persistence
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: hadoop-resourcemanager
+        tier: persistence
+        version: v1
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: >
+          {
+            "podAntiAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "labelSelector": {
+                    "matchExpressions": [
+                      {
+                        "key": "app",
+                        "operator": in,
+                        "values": ["hadoop-namenode", "hadoop-datanode", "hadoop-resourcemanager"]
+                      }
+                    ]
+                  },
+                  "namespaces": ["hadoop"],
+                  "topologyKey": "kubernetes.io/hostname"
+                }
+              ]
+            }
+          }
+    spec:
+      containers:
+      - name: resourceManager
+        image: docker.zhimei360.com/hadoop:2.7.3
+        args:
+        - yarn-daemon.sh
+        - --config
+        - /etc/hadoop
+        - start
+        - resourcemanager
+        ports:
+        - containerPort: 8032
+        - containerPort: 8033
+        - containerPort: 8088
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1024Mi
+          limits:
+            cpu: 250m
+            memory: 1024Mi
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /etc/hadoop
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hadoop-config
+          items:
+          - key: core-site
+            path: core-site.xml
+          - key: hdfs-site
+            path: hdfs-site.xml
+          - key: yarn-site
+            path: yarn-site.xml
+      dnsPolicy: ClusterFirst

@@ -1,0 +1,117 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: namenode
+  namespace: hadoop
+  labels:
+    app: hadoop-namenode
+    tier: persistence
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hadoop-namenode
+      tier: persistence
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: hadoop-namenode
+        tier: persistence
+        version: v1
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: >
+          {
+            "podAntiAffinity": {
+              "requiredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "labelSelector": {
+                    "matchExpressions": [
+                      {
+                        "key": "app",
+                        "operator": "In",
+                        "values": ["hadoop-datanode", "hadoop-namenode", "hadoop-resourcemanager"]
+                      }
+                    ]
+                  },
+                  "namespaces": ["hadoop"],
+                  "topologyKey": "kubernetes.io/hostname"
+                }
+              ]
+            }
+          }
+        pod.beta.kubernetes.io/init-containers: >
+          [
+            {
+              "name": "namenode-init",
+              "image": "docker.zhimei360.com/hadoop:2.7.3",
+              "args": ["hdfs", "--config", "/etc/hadoop", "namenode", "-format", "Hadoop_Cluster"],
+              "imagePullPolicy": "Always",
+              "volumeMounts": [
+                {
+                  "name": "hadoop-config",
+                  "mountPath": "/etc/hadoop",
+                  "readOnly": true
+                },
+                {
+                  "name": "namenode-data",
+                  "mountPath": "/hadoop/dfs/name"
+                }
+              ],
+              "resources": {
+                "requests": {
+                  "cpu": "100m",
+                  "memory": "512Mi"
+                },
+                "limits": {
+                  "cpu": "100m",
+                  "memory": "512Mi"
+                }
+              }
+            }
+          ]
+    spec:
+      containers:
+      - name: namenode
+        image: docker.zhimei360.com/hadoop:2.7.3
+        args:
+        - hadoop-daemon.sh
+        - --config
+        - /etc/hadoop
+        - --script
+        - hdfs
+        - start
+        - namenode
+        resources:
+          requests:
+            cpu: 100m
+            memory: 1024Mi
+          limits:
+            cpu: 100m
+            memory: 1024Mi
+        volumeMounts:
+        - name: hadoop-config
+          mountPath: /etc/hadoop
+          readOnly: true
+        - name: namenode-data
+          mountPath: /hadoop/dfs/name
+        ports:
+        - containerPort: 9000
+        - containerPort: 50070
+      volumes:
+      - name: hadoop-config
+        configMap:
+          name: hadoop-config
+          items:
+          - key: core-site
+            path: core-site.xml
+          - key: hdfs-site
+            path: hdfs-site.xml
+          - key: yarn-site
+            path: yarn-site.xml
+      - name: namenode-data
+        # hostPath:
+        #   path: /hadoop/dfs/name
+        emptyDir: {}
+      dnsPolicy: ClusterFirst

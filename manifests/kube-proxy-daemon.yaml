@@ -1,0 +1,54 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: kube-proxy-ds
+  namespace: kube-system
+  labels:
+    app: kube-proxy
+spec:
+  template:
+    metadata:
+      labels:
+        app: kube-proxy
+    spec:
+      hostNetwork: true
+      containers:
+      - name: kube-proxy
+        image: docker.zhimei360.com/hyperkube-amd64:v1.5.4
+        command:
+        - /hyperkube
+        - proxy
+        - --master=https://192.168.1.234
+        - --kubeconfig=/etc/kubernetes/work-kubeconfig.yaml
+        - 1>>/var/log/kube-proxy.log 2>&1
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: 250m
+        volumeMounts:
+        - mountPath: /etc/kubernetes/work-kubeconfig.yaml
+          name: "kubeconfig"
+          readOnly: true
+        - mountPath: /etc/kubernetes/ssl
+          name: "etc-kube-ssl"
+          readOnly: true
+        - mountPath: /var/run/dbus
+          name: dbus
+          readOnly: false
+        - mountPath: /var/log/kube-proxy.log
+          name: logfile
+          readOnly: false
+      volumes:
+      - name: "kubeconfig"
+        hostPath:
+          path: "/etc/kubernetes/work-kubeconfig.yaml"
+      - name: "etc-kube-ssl"
+        hostPath:
+          path: "/etc/kubernetes/ssl"
+      - hostPath:
+          path: /var/run/dbus
+        name: dbus
+      - hostPath:
+          path: /var/log/kube-proxy.log
+        name: logfile

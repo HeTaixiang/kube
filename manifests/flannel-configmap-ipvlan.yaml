@@ -1,0 +1,25 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: kube-flannel-cfg
+  labels:
+    tier: node
+    app: flannel
+data:
+  cni-conf.json: |
+    {
+      "name": "cbr0",
+      "type": "flannel",
+      "delegate": {
+        "type": "ipvlan",
+        "master": "enp0s8",
+        "mode": "l3s"
+      }
+    }
+  net-conf.json: |
+    {
+      "Network": "10.2.0.0/16",
+      "Backend": {
+        "Type": "host-gw"
+      }
+    }

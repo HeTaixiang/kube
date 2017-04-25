@@ -9,9 +9,10 @@ require 'yaml'
 Vagrant.require_version ">= 1.6.0"
 
 $controller_count = 1
-$worker_count = 2
+$worker_count = 3
 $worker_vm_memory = 2048
 $etcd_count = 3
+defaultGW = "192.168.1.1"
 
 
 if $worker_vm_memory < 2048
@@ -19,7 +20,8 @@ if $worker_vm_memory < 2048
 end
 
 WORKER_CLOUD_CONFIG_PATH = File.expand_path("../../script/worker-install.sh")
-BOX_URL = File.expand_path("../../box/debian-jessie-x64")
+# BOX_URL = File.expand_path("../../box/debian-jessie-x64")
+BOX_URL = File.expand_path("../../box/ubuntu-xenial.box")
 
 def etcdIP(num)
   return "192.168.1.#{num+230}"
@@ -47,10 +49,14 @@ end
 
 Vagrant.configure("2") do |config|
   # always use Vagrant's insecure key
-  config.ssh.insert_key = false
-  config.ssh.shell = "bash -c 'BASH_ENV=/etc/profile exec bash'"
+  # config.ssh.insert_key = false
+  # config.ssh.shell = "bash -c 'BASH_ENV=/etc/profile exec bash'"
+
+  # config.vm.base_mac = "02B8BA3CCA07"
+  # config.ssh.username = "ubuntu"
+  # config.ssh.password = "54b74d9036cc109ac9a0a069"
   # box config
-  config.vm.box = "debian-jessie-x64"
+  config.vm.box = "ubuntu-xenial"
   config.vm.box_check_update = false
   config.vm.box_url = "file://#{BOX_URL}"
   # config.vm.box = "centos/7"
@@ -90,9 +96,15 @@ Vagrant.configure("2") do |config|
 
       workerIP = workerIP(i)
       worker.vm.network :public_network, ip: workerIP, bridge: "en0: Ethernet"
-
       # each worker node get themself cert
       provisionMachineSSL(worker,"worker","kube-worker-#{workerIP}",[workerIP])
+      # set default route
+      worker.vm.provision :shell, :run => "always", :inline => "route add default gw #{defaultGW}"
+      #disable sync fold
+      worker.vm.synced_folder ".", "/vagrant", :disabled => true
+      # upload cni plugin
+      worker.vm.provision :file, :source => "../../cni_plugin/cni.tar", :destination => "/tmp/cni.tar"
+      worker.vm.provision :shell, :inline => "mkdir -p /opt/cni/bin && tar -xf /tmp/cni.tar -C /opt/cni/bin", :privileged => true
       # upload env
       worker.vm.provision :file, :source => "../../script/config.json", :destination => "/tmp/config.json"
       worker.vm.provision :shell, :inline => "mkdir -p $HOME/.docker /.docker && cp /tmp/config.json $HOME/.docker && cp /tmp/config.json /.docker", :privileged => true
@@ -107,7 +119,8 @@ Vagrant.configure("2") do |config|
       worker.vm.provision :file, :source => "../../manifests/work-kubeconfig.yaml", :destination => "/tmp/work-kubeconfig.yaml"
       # reposition
       worker.vm.provision :shell, :inline => "mv /tmp/*.service /etc/systemd/system/", :privileged => true
-      worker.vm.provision :shell, :inline => "mkdir -p /etc/kubernetes/manifests && mv /tmp/kube-proxy.yaml /etc/kubernetes/manifests && mv /tmp/work-kubeconfig.yaml /etc/kubernetes", :privileged => true
+      worker.vm.provision :shell, :inline => "mkdir -p /etc/kubernetes && mv /tmp/work-kubeconfig.yaml /etc/kubernetes", :privileged => true
+      worker.vm.provision :shell, :inline => "mkdir -p /etc/kubernetes/manifests && mv /tmp/kube-proxy.yaml /etc/kubernetes/manifests", :privileged => true
       # upload script
       worker.vm.provision :file, :source => "../../script/util.sh", :destination => "/tmp/util.sh"
       worker.vm.provision :file, :source => "../../script/docker.sh", :destination => "/tmp/docker.sh"

@@ -55,7 +55,8 @@ function init_config {
     fi
 
     if [ -z $ADVERTISE_IP ]; then
-        export ADVERTISE_IP=$(ip -o -4 addr list eth1 | awk '{print $4}'| cut -d/ -f1 | head -1)
+        # export ADVERTISE_IP=$(ip -o -4 addr list eth1 | awk '{print $4}'| cut -d/ -f1 | head -1)
+        export ADVERTISE_IP=$(ip -o -4 addr list $(route -n | awk '{if($1 == "0.0.0.0") print $8;}') | awk '{print $4}'| cut -d/ -f1 | head -1)
     fi
 
     for REQ in "${REQUIRED[@]}"; do
@@ -118,19 +119,19 @@ init_config
 # install docker
 # kube::docker::install
 # start bootstrap-docker
-kube::docker::init_bootstrap_docker
-kube::docker::start_bootstrap_docker
+# kube::docker::init_bootstrap_docker
+# kube::docker::start_bootstrap_docker
 
 # config flannel parameter on etcd cluster
-config_flannel
+# config_flannel
 # init flannel
-kube::flannel::init
-kube::flannel::start
-kube::flannel::export_subnet_env
+# kube::flannel::init
+# kube::flannel::start
+# kube::flannel::export_subnet_env
 
 # init docker
-kube::docker::init_docker
-kube::docker::start_docker
+# kube::docker::init_docker
+# kube::docker::start_docker
 # kube::docker::pull_image
 
 # config kubernetes master yaml
